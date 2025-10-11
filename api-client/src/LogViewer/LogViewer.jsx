@@ -14,29 +14,34 @@ const LogViewer = () => {
   const [loading, setLoading] = useState(true); // API 호출이 진행 중인지 여부를 나타내는 상태 (로딩 UI 표시용)
   const [error, setError] = useState(null); // API 호출 중 오류 발생 시 에러 메시지를 저장하는 상태
 
+  // 현재 선택된 필터를 저장할 state
+  const [filterMethod, setFilterMethod] = useState('ALL');
+  const LOG_METHODS = ['ALL', 'GET', 'POST', 'PUT', 'DELETE'];
+
   /**
    * API 서버로부터 로그 데이터를 비동기적으로 가져오는 함수입니다.
    */
   const fetchLogs = async () => {
-    try {
-      setLoading(true); // 데이터 요청 시작 시 로딩 상태를 true로 설정
-      const response = await axios.get('http://localhost:8083/api/logs');
-      setLogs(response.data); // 성공적으로 데이터를 받아오면 logs 상태를 업데이트
-      setError(null); // 이전의 에러 상태를 초기화
-    } catch (err) {
-      setError('로그를 불러오는 데 실패했습니다.'); // 오류 발생 시 에러 상태를 업데이트
-      console.error('API 호출 오류:', err); // 개발자 확인을 위해 콘솔에 상세 에러 출력
-    } finally {
-      setLoading(false); // 요청 성공/실패 여부와 관계없이 로딩 상태를 false로 설정
-    }
-  };
+        try {
+            setLoading(true);
+            const params = filterMethod === 'ALL' ? {} : { httpMethod: filterMethod };
+            const response = await axios.get('http://localhost:8083/api/logs', { params });
+            setLogs(response.data);
+            setError(null);
+        } catch (err) {
+            setError('로그를 불러오는 데 실패했습니다.');
+            console.error('API 호출 오류:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
   // --- Effect Hook ---
   // 컴포넌트가 처음 화면에 렌더링(마운트)될 때 한 번만 fetchLogs 함수를 호출합니다.
   // 두 번째 인자인 의존성 배열 `[]`이 비어있기 때문에, 최초 1회만 실행됩니다.
-  useEffect(() => {
-    fetchLogs();
-  }, []);
+      useEffect(() => {
+        fetchLogs();
+      }, [filterMethod]);
 
   // 상태 코드에 따라 행과 점의 스타일을 반환하는 함수
     const getStatusStyles = (status) => {
@@ -69,16 +74,41 @@ const LogViewer = () => {
   // 로딩과 에러가 없을 때 실제 로그 테이블을 렌더링합니다.
   return (
         <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
-            <div className="max-w-full mx-auto bg-white rounded-lg shadow-md">
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h1 className="text-xl font-bold text-gray-800">API Event Logs</h1>
-                    <div className="flex items-center space-x-4">
-                        <input type="text" placeholder="Search..." className="px-2 py-1 border rounded-md text-sm" />
-                        <button onClick={fetchLogs} className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm font-semibold rounded-md transition">
-                            Update list
-                        </button>
-                    </div>
-                </div>
+          <div className="max-w-full mx-auto bg-white rounded-lg shadow-md">
+            
+            {/* 상단 제목 부분에서는 'Update list' 버튼을 제거합니다. */}
+            <div className="p-4 border-b">
+              <h1 className="text-xl font-bold text-gray-800">API Event Logs</h1>
+            </div>
+
+            {/* 필터와 버튼을 한 줄에 배치하기 위한 새로운 div를 추가합니다. */}
+            <div className="p-4 flex justify-between items-center border-b bg-gray-50">
+              {/* 왼쪽: 필터 버튼들 */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-semibold text-gray-600">Method:</span>
+                {LOG_METHODS.map(method => (
+                  <button
+                    key={method}
+                    onClick={() => setFilterMethod(method)}
+                    className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
+                      filterMethod === method
+                        ? 'bg-blue-500 text-white shadow'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
+
+              {/* 오른쪽: 검색창과 Update list 버튼 */}
+              <div className="flex items-center space-x-4">
+                <input type="text" placeholder="Search..." className="px-2 py-1 border rounded-md text-sm" />
+                <button onClick={fetchLogs} className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm font-semibold rounded-md transition">
+                  Update list
+                </button>
+              </div>
+            </div>
                 <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                         {/* 테이블 헤더 스타일 변경 */}
@@ -96,38 +126,46 @@ const LogViewer = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {logs.map((log) => {
-                                // 현재 로그의 상태에 맞는 스타일 클래스를 가져옵니다.
-                                const styles = getStatusStyles(log.responseStatus);
-                                return (
-                                    // 행(tr)에 동적으로 클래스를 적용합니다.
-                                    <tr key={log.logId} className={styles.row}>
-                                        <td className="px-4 py-2 whitespace-nowrap">{log.logId}</td>
-                                        <td className="px-4 py-2 whitespace-nowrap">{log.serviceName}</td>
-                                        <td className="px-4 py-2 truncate max-w-xs">{log.apiEndpoint}</td>
-                                        <td className="px-4 py-2 whitespace-nowrap">{log.httpMethod}</td>
-                                        <td className="px-4 py-2 whitespace-nowrap">
-                                            {/* 상태 코드 앞에 색상 점을 추가하여 시각화 */}
-                                            <div className="flex items-center">
-                                                <span className={`h-2.5 w-2.5 rounded-full mr-2 ${styles.dot}`}></span>
-                                                {log.responseStatus}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
-                                        <td className="px-4 py-2 whitespace-nowrap">{log.clientIp}</td>
-                                        <td className="px-4 py-2">
-                                            {log.requestPayload ? (
-                                                <pre className="text-xs font-mono bg-gray-100 p-1 rounded max-h-24 overflow-auto">{formatJson(log.requestPayload)}</pre>
-                                            ) : (<span>-</span>)}
-                                        </td>
-                                        <td className="px-4 py-2">
-                                            {log.responsePayload ? (
-                                                <pre className="text-xs font-mono bg-gray-100 p-1 rounded max-h-24 overflow-auto">{formatJson(log.responsePayload)}</pre>
-                                            ) : (<span>-</span>)}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                          
+                            {/* logs 배열의 길이를 확인하여 데이터가 없을 때 메시지를 표시합니다. */}
+                            {logs.length === 0 ? (
+                                <tr>
+                                    {/* colSpan을 사용하여 모든 컬럼을 하나로 합쳐 메시지를 중앙에 표시합니다. */}
+                                    <td colSpan="9" className="px-6 py-12 text-center text-gray-500">
+                                        표시할 로그가 없습니다.
+                                    </td>
+                                </tr>
+                            ) : (
+                                logs.map((log) => {
+                                    const styles = getStatusStyles(log.responseStatus);
+                                    return (
+                                        <tr key={log.logId} className={styles.row}>
+                                            <td className="px-4 py-2 whitespace-nowrap">{log.logId}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap">{log.serviceName}</td>
+                                            <td className="px-4 py-2 truncate max-w-xs">{log.apiEndpoint}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap">{log.httpMethod}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <span className={`h-2.5 w-2.5 rounded-full mr-2 ${styles.dot}`}></span>
+                                                    {log.responseStatus}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap">{log.clientIp}</td>
+                                            <td className="px-4 py-2">
+                                                {log.requestPayload ? (
+                                                    <pre className="text-xs font-mono bg-gray-100 p-1 rounded max-h-24 overflow-auto">{formatJson(log.requestPayload)}</pre>
+                                                ) : (<span>-</span>)}
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                {log.responsePayload ? (
+                                                    <pre className="text-xs font-mono bg-gray-100 p-1 rounded max-h-24 overflow-auto">{formatJson(log.responsePayload)}</pre>
+                                                ) : (<span>-</span>)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
                         </tbody>
                     </table>
                 </div>
